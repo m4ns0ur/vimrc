@@ -45,6 +45,21 @@ IMPROVEMENTS:
   [[GH-2747]](https://github.com/fatih/vim-go/pull/2747)
 * Improve readability of gopls logs.
   [[GH-2773]](https://github.com/fatih/vim-go/pull/2773)
+* Introduce `g:go_implements_mode` to allow `:GoImplements` to be satisfied
+  with `gopls`.
+  [[GH-2741]](https://github.com/fatih/vim-go/pull/2741)
+  [[GH-2799]](https://github.com/fatih/vim-go/pull/2799)
+* Introduce `g:go_imports_mode` to allow `:GoImports` to be satisfied with
+  `gopls`.
+  [[GH-2791]](https://github.com/fatih/vim-go/pull/2791)
+  [[GH-2794]](https://github.com/fatih/vim-go/pull/2794)
+  [[GH-2796]](https://github.com/fatih/vim-go/pull/2796)
+* Send LSP synchronization messages to `gopls` when the file does not yet exist
+  on disk as long as its directory exists.
+  [[GH-2805]](https://github.com/fatih/vim-go/pull/2805)
+* Run `gogetdoc` in the buffer's directory so that it will work regardless of
+  the user's working directory in module-aware mode.
+  [[GH-2804]](https://github.com/fatih/vim-go/pull/2804)
 
 BUG FIXES:
 * Use the discovered full path for gopls when renaming.
@@ -75,7 +90,11 @@ BUG FIXES:
   [[GH-2782]](https://github.com/fatih/vim-go/pull/2782)
 * Show the command executed by `:GoRun` when `g:go_debug` includes `'shell-commands'`.
   [[GH-2785]](https://github.com/fatih/vim-go/pull/2785)
-
+* Clear the list for formatting errors when `g:go_fmt_command` is `gopls`.
+  [[GH-2790]](https://github.com/fatih/vim-go/pull/2790)
+* Handle text edits from gopls that are only line insertions.
+  [[GH-2802]](https://github.com/fatih/vim-go/pull/2802)
+  [[GH-2803]](https://github.com/fatih/vim-go/pull/2803)
 
 ## v1.22 - (January 30, 2020)
 

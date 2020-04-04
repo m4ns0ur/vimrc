@@ -1342,7 +1342,7 @@ Use this option to auto |:GoFmt| on save. By default it's enabled >
 <
                                                           *'g:go_fmt_command'*
 
-Use this option to define which tool is used to gofmt. Valid options are
+Use this option to define which tool is used to format code. Valid options are
 `gofmt`, `goimports`, and `gopls`. By default `gofmt` is used.
 >
 
@@ -1400,6 +1400,15 @@ it's causing problems on some Vim versions. This has no effect if
   let g:go_fmt_experimental = 0
 
 <
+
+                                                        *'g:go_imports_mode'*
+
+Use this option to define which tool is used to adjust imports. Valid options
+are `goimports` and `gopls`. By default `goimports` is used.
+>
+
+  let g:go_imports_mode = "goimports"
+<
                                                      *'g:go_mod_fmt_autosave'*
 
 Use this option to auto |:GoModFmt| on save. By default it's enabled >
@@ -1454,9 +1463,17 @@ Use this option to define the command to be used for |:GoReferrers|. By
 default `gopls` is used, because it is the fastest and works with Go modules.
 One might also use `guru` for its ability to show references from other
 packages.  This option will be removed after `gopls` can show references from
-other packages. Valid options are `gopls` and `guru`.
+other packages. Valid options are `gopls` and `guru`. By default it's `guru`.
 >
   let g:go_referrers_mode = 'gopls'
+<
+                                                      *'g:go_implements_mode'*
+
+Use this option to define the command to be used for |:GoImplements|. 
+The Implements feature in gopls is still new and being worked upon.
+Valid options are `gopls` and `guru`. By default it's `guru`.
+>
+  let g:go_implements_mode = 'guru'
 <
                                                   *'g:go_def_mapping_enabled'*
 
@@ -2386,6 +2403,17 @@ delegate to other tools. e.g.  completion via 'omnifunc', |'g:go_info_mode'|
 and |'g:go_def_mode'| can be set to use other tools for now (though some of
 the alternatives to `gopls` are effectively at their end of life and support
 for them from within vim-go may be removed soon).
+
+I want to disable `gopls`~
+
+Vim-go's use of `gopls` can be disabled with 'g:go_gopls_enabled'.
+
+Some users want to do this to limit the load on their system when using vim-go
+concurrently with an LSP client like vim-lsp. Instead of disabling vim-go's
+use of `gopls`, you may prefer to configure vim-go to share the `gopls`
+instance with other LSP plugins. 'g:go_gopls_options' can be used to configure
+how vim-go starts `gopls` so that the instance can be shared with other
+plugins and vim-go user's can leverage the full power of vim-go.
 
 I get a "Unknown function: go#config#..." error~
 

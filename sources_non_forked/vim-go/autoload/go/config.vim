@@ -351,6 +351,10 @@ function! go#config#FmtCommand() abort
   return get(g:, "go_fmt_command", "gofmt")
 endfunction
 
+function! go#config#ImportsMode() abort
+  return get(g:, "go_imports_mode", "goimports")
+endfunction
+
 function! go#config#FmtOptions() abort
   return get(b:, "go_fmt_options", get(g:, "go_fmt_options", {}))
 endfunction
@@ -505,6 +509,10 @@ endfunction
 
 function! go#config#ReferrersMode() abort
   return get(g:, 'go_referrers_mode', 'gopls')
+endfunction
+
+function! go#config#ImplementsMode() abort
+  return get(g:, 'go_implements_mode', 'guru')
 endfunction
 
 function! go#config#GoplsCompleteUnimported() abort
