@@ -609,12 +609,12 @@ function! go#lsp#DidOpen(fname) abort
     return
   endif
 
-  if !filereadable(a:fname)
+  let l:fname = fnamemodify(a:fname, ':p')
+  if !isdirectory(fnamemodify(l:fname, ':h'))
     return
   endif
 
   let l:lsp = s:lspfactory.get()
-  let l:fname = fnamemodify(a:fname, ':p')
 
   if !has_key(l:lsp.notificationQueue, l:fname)
     let l:lsp.notificationQueue[l:fname] = []
@@ -644,7 +644,8 @@ function! go#lsp#DidChange(fname) abort
     return
   endif
 
-  if !filereadable(a:fname)
+  let l:fname = fnamemodify(a:fname, ':p')
+  if !isdirectory(fnamemodify(l:fname, ':h'))
     return
   endif
 
@@ -652,7 +653,6 @@ function! go#lsp#DidChange(fname) abort
 
   let l:lsp = s:lspfactory.get()
 
-  let l:fname = fnamemodify(a:fname, ':p')
   if !has_key(l:lsp.fileVersions, l:fname)
     let l:lsp.fileVersions[l:fname] = 0
   endif
@@ -664,7 +664,8 @@ function! go#lsp#DidChange(fname) abort
 endfunction
 
 function! go#lsp#DidClose(fname) abort
-  if !filereadable(a:fname)
+  let l:fname = fnamemodify(a:fname, ':p')
+  if !isdirectory(fnamemodify(l:fname, ':h'))
     return
   endif
 
@@ -673,7 +674,7 @@ function! go#lsp#DidClose(fname) abort
   endif
 
   let l:lsp = s:lspfactory.get()
-  let l:msg = go#lsp#message#DidClose(fnamemodify(a:fname, ':p'))
+  let l:msg = go#lsp#message#DidClose(l:fname)
   let l:state = s:newHandlerState('')
   " TODO(bc): setting a buffer level variable here assumes that a:fname is the
   " current buffer. Change to a:fname first before setting it and then change
@@ -807,12 +808,16 @@ function! go#lsp#Referrers(fname, line, col, handler) abort
 
   let l:state = s:newHandlerState('referrers')
 
-  let l:state.handleResult = funcref('s:referencesHandler', [function(a:handler, [], l:state)], l:state)
+  let l:state.handleResult = funcref('s:handleReferences', [function(a:handler, [], l:state)], l:state)
   let l:state.error = funcref('s:noop')
   return l:lsp.sendMessage(l:msg, l:state)
 endfunction
 
-function! s:referencesHandler(next, msg) abort dict
+function! s:handleReferences(next, msg) abort dict
+  call s:handleLocations(a:next, a:msg)
+endfunction
+
+function! s:handleLocations(next, msg) abort
   let l:result = []
 
   let l:msg = a:msg
@@ -851,6 +856,34 @@ function! s:referencesHandler(next, msg) abort dict
   endfor
 
   call call(a:next, [0, l:result, ''])
+endfunction
+
+" go#lsp#Implementations calls gopls to get the implementations to the
+" identifier at line and col in fname. handler should be a dictionary function
+" that takes a list of strings in the form 'file:line:col: message'. handler
+" will be attached to a dictionary that manages state (statuslines, sets the
+" winid, etc.). handler should take three arguments: an exit_code, a JSON
+" object encoded to a string that mimics guru's ouput for guru implements, and
+" a third parameter that only exists for compatibility with guru implements.
+function! go#lsp#Implements(fname, line, col, handler) abort
+  call go#lsp#DidChange(a:fname)
+
+  let l:lsp = s:lspfactory.get()
+  let l:msg = go#lsp#message#Implementation(a:fname, a:line, a:col)
+
+  let l:state = s:newHandlerState('implements')
+
+  let l:state.handleResult = funcref('s:handleImplements', [function(a:handler, [], l:state)], l:state)
+  let l:state.error = funcref('s:handleImplementsError', [function(a:handler, [], l:state)], l:state)
+  return l:lsp.sendMessage(l:msg, l:state)
+endfunction
+
+function! s:handleImplements(next, msg) abort dict
+  call s:handleLocations(a:next, a:msg)
+endfunction
+
+function! s:handleImplementsError(next, error) abort dict
+  call call(a:next, [1, [a:error], ''])
 endfunction
 
 function! go#lsp#Hover(fname, line, col, handler) abort
@@ -1120,7 +1153,7 @@ function! s:debugasync(timer) abort
   endtry
 endfunction
 
-function! s:debug(event, data, ...) abort
+function! s:debug(event, data) abort
   let l:shouldStart = len(s:log) > 0
   let s:log = add(s:log, [a:event, a:data])
 
@@ -1184,12 +1217,12 @@ function! go#lsp#Diagnostics(...) abort
 endfunction
 
 function! go#lsp#AnalyzeFile(fname) abort
-  if !filereadable(a:fname)
+  let l:fname = fnamemodify(a:fname, ':p')
+  if !isdirectory(fnamemodify(l:fname, ':h'))
     return []
   endif
 
   let l:lsp = s:lspfactory.get()
-  let l:fname = fnamemodify(a:fname, ':p')
 
   let l:version = l:lsp.fileVersions[l:fname]
 
@@ -1294,25 +1327,84 @@ function! go#lsp#Format() abort
   let l:lsp = s:lspfactory.get()
 
   let l:state = s:newHandlerState('format')
-  let l:formatHandler = go#promise#New(function('s:formatHandler', [], l:state), 10000, '')
-  let l:state.handleResult = l:formatHandler.wrapper
-  let l:state.error = l:formatHandler.wrapper
+  let l:handleFormat = go#promise#New(function('s:handleFormat', [], l:state), 10000, '')
+  let l:state.handleResult = l:handleFormat.wrapper
+  let l:state.error = l:handleFormat.wrapper
   let l:state.handleError = function('s:handleFormatError', [l:fname], l:state)
   let l:msg = go#lsp#message#Format(l:fname)
   call l:lsp.sendMessage(l:msg, l:state)
 
+  call go#fmt#CleanErrors()
+
   " await the result to avoid any race conditions among autocmds (e.g.
   " BufWritePre and BufWritePost)
-  call formatHandler.await()
+  call l:handleFormat.await()
 endfunction
 
-function! s:formatHandler(msg) abort dict
+" Imports executes the source.organizeImports code action for the current
+" buffer.
+function! go#lsp#Imports() abort
+  let l:fname = expand('%:p')
+  " send the current file so that TextEdits will be relative to the current
+  " state of the buffer.
+  call go#lsp#DidChange(l:fname)
+
+  let l:lsp = s:lspfactory.get()
+
+  let l:state = s:newHandlerState('imports')
+  let l:handler = go#promise#New(function('s:handleCodeAction', [], l:state), 10000, '')
+  let l:state.handleResult = l:handler.wrapper
+  let l:state.error = l:handler.wrapper
+  let l:state.handleError = function('s:handleCodeActionError', [l:fname], l:state)
+  let l:msg = go#lsp#message#CodeActionImports(l:fname)
+  call l:lsp.sendMessage(l:msg, l:state)
+
+  " await the result to avoid any race conditions among autocmds (e.g.
+  " BufWritePre and BufWritePost)
+  call l:handler.await()
+endfunction
+
+function! s:handleFormat(msg) abort dict
+  call go#fmt#CleanErrors()
+
+  if type(a:msg) is type('')
+    call self.handleError(a:msg)
+    return
+  endif
+  call s:applyTextEdits(a:msg)
+endfunction
+
+function! s:handleCodeAction(msg) abort dict
+  if type(a:msg) is type('')
+    call self.handleError(a:msg)
+    return
+  endif
+
   if a:msg is v:null
     return
   endif
 
-  if type(a:msg) is type('')
-    call self.handleError(a:msg)
+  for l:item in a:msg
+    if get(l:item, 'kind', '') is 'source.organizeImports'
+      if !has_key(l:item, 'edit')
+        continue
+      endif
+      if !has_key(l:item.edit, 'documentChanges')
+        continue
+      endif
+      for l:change in l:item.edit.documentChanges
+        if !has_key(l:change, 'edits')
+          continue
+        endif
+        " TODO(bc): change to the buffer for l:change.textDocument.uri
+        call s:applyTextEdits(l:change.edits)
+      endfor
+    endif
+  endfor
+endfunction
+
+function s:applyTextEdits(msg) abort
+  if a:msg is v:null
     return
   endif
 
@@ -1336,25 +1428,35 @@ function! s:formatHandler(msg) abort dict
     let l:preSliceEnd = 0
     if l:msg.range.start.character > 0
       let l:preSliceEnd = go#lsp#lsp#PositionOf(l:startcontent, l:msg.range.start.character-1) - 1
+      let l:startcontent = l:startcontent[:l:preSliceEnd]
+    elseif l:endline == l:startline && (l:msg.range.end.character == 0 || l:msg.range.start.character == 0)
+      " l:startcontent should be the empty string when l:text is a
+      " replacement at the beginning of the line.
+      let l:startcontent = ''
     endif
 
     let l:endcontent = getline(l:endline)
     let l:postSliceStart = 0
     if l:msg.range.end.character > 0
       let l:postSliceStart = go#lsp#lsp#PositionOf(l:endcontent, l:msg.range.end.character-1)
+      let l:endcontent = l:endcontent[(l:postSliceStart):]
     endif
 
     " There isn't an easy way to replace the text in a byte or character
-    " range, so append any text on l:endline starting from l:tailidx to l:text,
-    " prepend any text on l:startline prior to l:prelen to l:text, and
-    " finally replace the lines with a delete followed by and append.
-    let l:text = printf('%s%s%s', l:startcontent[:l:preSliceEnd], l:text, l:endcontent[(l:postSliceStart):])
+    " range, so append to l:text any text on l:endline starting from
+    " l:postSliceStart and prepend to l:text any text on l:startline prior to
+    " l:preSliceEnd, and finally replace the lines with a delete followed by
+    " and append.
+    let l:text = printf('%s%s%s', l:startcontent, l:text, l:endcontent)
 
     " TODO(bc): deal with the undo file
     " TODO(bc): deal with folds
 
     call execute(printf('%d,%d d_', l:startline, l:endline))
-    call append(l:startline-1, l:text)
+    for l:line in split(l:text, "\n")
+      call append(l:startline-1, l:line)
+      let l:startline += 1
+    endfor
   endfor
 
   call go#lsp#DidChange(expand('%:p'))
@@ -1362,12 +1464,18 @@ function! s:formatHandler(msg) abort dict
 endfunction
 
 function! s:handleFormatError(filename, msg) abort dict
-  if !go#config#FmtFailSilently()
-    let l:errors = split(a:msg, '\n')
-    let l:errors = map(l:errors, printf('substitute(v:val, ''^'', ''%s:'', '''')', a:filename))
-    let l:errors = join(l:errors, "\n")
-    call go#fmt#ShowErrors(l:errors)
+  if go#config#FmtFailSilently()
+    return
   endif
+
+  let l:errors = split(a:msg, '\n')
+  let l:errors = map(l:errors, printf('substitute(v:val, ''^'', ''%s:'', '''')', a:filename))
+  let l:errors = join(l:errors, "\n")
+  call go#fmt#ShowErrors(l:errors)
+endfunction
+
+function! s:handleCodeActionError(filename, msg) abort dict
+  " TODO(bc): handle the error?
 endfunction
 
 function! s:textEditLess(left, right) abort
