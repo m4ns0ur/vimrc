@@ -42,6 +42,11 @@ let &t_EI = "\<Esc>[1 q"
 let &t_SI .= "\<Esc>[?2004h"
 let &t_EI .= "\<Esc>[?2004l"
 
+set background=dark
+let g:solarized_termcolors=256
+let g:solarized_termtrans=1
+colorscheme solarized
+
 " In many terminal emulators the mouse works just fine, thus enable it.
 if has('mouse')
     set mouse=a
