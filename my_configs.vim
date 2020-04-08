@@ -43,14 +43,10 @@ let &t_SI .= "\<Esc>[?2004h"
 let &t_EI .= "\<Esc>[?2004l"
 
 set background=dark
-let g:solarized_termcolors=256
-let g:solarized_termtrans=1
-colorscheme solarized
-
-" In many terminal emulators the mouse works just fine, thus enable it.
-if has('mouse')
-    set mouse=a
-endif
+"let g:solarized_termcolors=256
+"colorscheme solarized
+let g:onedark_termcolors=256
+colorscheme onedark
 
 " If linux then set ttymouse
 let s:uname = system("echo -n \"$(uname)\"")
@@ -108,8 +104,3 @@ augroup END
 " comfortable-motions
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 let g:loaded_comfortable_motion = 0
-
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" peaksea
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-hi CursorLine cterm=NONE ctermbg=235 ctermfg=NONE

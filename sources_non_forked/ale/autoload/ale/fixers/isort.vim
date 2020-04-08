@@ -17,7 +17,9 @@ endfunction
 
 function! ale#fixers#isort#Fix(buffer) abort
     let l:options = ale#Var(a:buffer, 'python_isort_options')
+
     let l:executable = ale#fixers#isort#GetExecutable(a:buffer)
+
     let l:exec_args = l:executable =~? 'pipenv$'
     \   ? ' run isort'
     \   : ''
@@ -27,8 +29,8 @@ function! ale#fixers#isort#Fix(buffer) abort
     endif
 
     return {
-    \   'cwd': '%s:h',
-    \   'command': ale#Escape(l:executable) . l:exec_args
+    \   'command': ale#path#BufferCdString(a:buffer)
+    \   . ale#Escape(l:executable) . l:exec_args
     \   . (!empty(l:options) ? ' ' . l:options : '') . ' -',
     \}
 endfunction

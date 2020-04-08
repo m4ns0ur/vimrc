@@ -9,7 +9,7 @@ function! ale_linters#dockerfile#hadolint#Handle(buffer, lines) abort
     "
     " /dev/stdin:19 DL3001 Pipe chain should start with a raw value.
     " /dev/stdin:19:3 unexpected thing
-    let l:pattern = '\v^%(/dev/stdin|-):(\d+):?(\d+)? ((DL|SC)(\d+) )?((.+)?: )?(.+)$'
+    let l:pattern = '\v^/dev/stdin:(\d+):?(\d+)? ((DL|SC)(\d+) )?((.+)?: )?(.+)$'
     let l:output = []
 
     for l:match in ale#util#GetMatches(a:lines, l:pattern)
@@ -92,15 +92,12 @@ endfunction
 
 function! ale_linters#dockerfile#hadolint#GetCommand(buffer) abort
     let l:command = ale_linters#dockerfile#hadolint#GetExecutable(a:buffer)
-    let l:opts = '--no-color -'
 
     if l:command is# 'docker'
-        return printf('docker run --rm -i %s hadolint %s',
-        \ ale#Var(a:buffer, 'dockerfile_hadolint_docker_image'),
-        \ l:opts)
+        return 'docker run --rm -i ' . ale#Var(a:buffer, 'dockerfile_hadolint_docker_image')
     endif
 
-    return 'hadolint ' . l:opts
+    return 'hadolint -'
 endfunction
 
 
