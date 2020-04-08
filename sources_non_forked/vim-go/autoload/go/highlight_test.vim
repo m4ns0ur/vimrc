@@ -192,7 +192,7 @@ function! s:numericHighlightGroupInSliceElement(testname, value)
   let l:dir = gotest#write_file(printf('numeric/slice-element/%s.go', a:testname), [
         \ 'package numeric',
         \ '',
-        \ printf("v := []int{\x1f%s}", a:value),
+        \ printf("v := []int{%s\x1f}", a:value),
         \ ])
 
   try
@@ -208,7 +208,7 @@ function! s:numericHighlightGroupInMultidimensionalSliceElement(testname, value)
   let l:dir = gotest#write_file(printf('numeric/slice-multidimensional-element/%s.go', a:testname), [
         \ 'package numeric',
         \ '',
-        \ printf("v := [][]int{{\x1f%s},{%s}}", a:value, a:value),
+        \ printf("v := [][]int{{%s\x1f},{%s}}", a:value, a:value),
         \ ])
 
   try
@@ -225,7 +225,7 @@ function! s:numericHighlightGroupInSliceIndex(testname, value)
         \ 'package numeric',
         \ '',
         \ 'var sl []int',
-        \ printf("println(sl[\x1f%s])", a:value),
+        \ printf("println(sl[%s\x1f])", a:value),
         \ ])
 
   try
@@ -242,7 +242,7 @@ function! s:numericHighlightGroupInMultidimensionalSliceIndex(testname, first, s
         \ 'package numeric',
         \ '',
         \ 'var sl [][]int',
-        \ printf("println(sl[\x1f%s][%s])", a:first, a:second),
+        \ printf("println(sl[%s\x1f][%s])", a:first, a:second),
         \ ])
 
   try
@@ -259,7 +259,7 @@ function! s:numericHighlightGroupInSliceSlicing(testname, from, to)
         \ 'package numeric',
         \ '',
         \ 'var sl = []int{1,2}',
-        \ printf("println(sl[\x1f%s:%s])", a:from, a:to),
+        \ printf("println(sl[%s\x1f:%s])", a:from, a:to),
         \ ])
   try
     let l:pos = getcurpos()
@@ -272,6 +272,7 @@ endfunction
 
 function! Test_diagnostic_after_fmt() abort
   let g:go_fmt_command = 'gofmt'
+  let g:go_diagnostics_level = 2
   try
     call s:diagnostic_after_write( [
           \ 'package main',
@@ -279,7 +280,7 @@ function! Test_diagnostic_after_fmt() abort
           \ '',
           \ 'func main() {',
           \ '',
-          \ "\tfmt.Println(\x1fhello)",
+          \ "\tfmt.Println(h\x1fello)",
           \ '}',
           \ ], [])
   finally
@@ -290,6 +291,7 @@ endfunction
 function! Test_diagnostic_after_fmt_change() abort
   " craft a file that will be changed when its written (gofmt will change it).
   let g:go_fmt_command = 'gofmt'
+  let g:go_diagnostics_level = 2
   try
     call s:diagnostic_after_write( [
           \ 'package main',
@@ -297,7 +299,7 @@ function! Test_diagnostic_after_fmt_change() abort
           \ '',
           \ 'func main() {',
           \ '',
-          \ "fmt.Println(\x1fhello)",
+          \ "fmt.Println(h\x1fello)",
           \ '}',
           \ ], [])
   finally
@@ -308,6 +310,7 @@ endfunction
 function! Test_diagnostic_after_fmt_cleared() abort
   " craft a file that will be fixed when it is written.
   let g:go_fmt_command = 'gofmt'
+  let g:go_diagnostics_level = 2
   try
     call s:diagnostic_after_write( [
           \ 'package main',
@@ -315,7 +318,7 @@ function! Test_diagnostic_after_fmt_cleared() abort
           \ '',
           \ 'func main() {',
           \ '',
-          \ "fmt.Println(\x1fhello)",
+          \ "fmt.Println(h\x1fello)",
           \ '}',
           \ ], ['hello := "hello, vim-go"'])
   finally
@@ -324,13 +327,14 @@ function! Test_diagnostic_after_fmt_cleared() abort
 endfunction
 
 function! Test_diagnostic_after_reload() abort
+  let g:go_diagnostics_level = 2
   let l:dir = gotest#write_file('diagnostic/after-reload.go', [
               \ 'package main',
               \ 'import "fmt"',
               \ '',
               \ 'func main() {',
               \ '',
-              \ "\tfmt.Println(\x1fhello)",
+              \ "\tfmt.Println(h\x1fello)",
               \ '}',
               \ ])
   try
@@ -347,6 +351,7 @@ endfunction
 function! s:diagnostic_after_write(contents, changes) abort
   syntax on
 
+  let g:go_diagnostics_level = 2
   let l:dir = gotest#write_file('diagnostic/after-write.go', a:contents)
 
   try
@@ -417,6 +422,89 @@ function! s:check_diagnostics(actual, expected, when)
 
   call assert_equal(a:expected, l:actual, a:when)
 endfunction
+
+function! Test_goStringHighlight() abort
+  syntax on
+
+  let l:dir = gotest#write_file('highlight/gostring.go', [
+        \ 'package highlight',
+        \ '',
+        \ 'import (',
+        \ printf("\t%s", '"fmt"'),
+        \ ')',
+        \ '',
+        \ printf('var s = "%s"', "gostring\x1f"),
+        \ ])
+
+  try
+    let l:pos = getcurpos()
+    let l:actual = synIDattr(synID(l:pos[1], l:pos[2], 1), 'name')
+    call assert_equal('goString', l:actual)
+  finally
+    call delete(l:dir, 'rf')
+  endtry
+endfunc
+
+function! Test_goImportStringHighlight() abort
+  syntax on
+
+  let l:dir = gotest#write_file('highlight/import.go', [
+        \ 'package highlight',
+        \ '',
+        \ 'import (',
+        \ printf('%s"%s"', "\t", "f\x1fmt"),
+        \ ')',
+        \ '',
+        \ 'var s = fmt.Sprint("gostring")',
+        \ ])
+
+  try
+    let l:pos = getcurpos()
+    let l:actual = synIDattr(synID(l:pos[1], l:pos[2], 1), 'name')
+    call assert_equal('goImportString', l:actual)
+  finally
+    call delete(l:dir, 'rf')
+  endtry
+endfunc
+
+function! Test_goReceiverHighlight() abort
+  syntax on
+
+  let l:tests = {
+      \ 'PointerReceiverVar': {'group': 'goReceiverVar', 'value': "t\x1f *T"},
+      \ 'ValueReceiverVar': {'group': 'goReceiverVar', 'value': "t\x1f T"},
+      \ 'PointerReceiverType': {'group': 'goReceiverType', 'value': "t *T\x1f"},
+      \ 'ValueReceiverType': {'group': 'goReceiverType', 'value': "t T\x1f"},
+      \ 'PointerReceiverTypeOmittedVar': {'group': 'goReceiverType', 'value': "*T\x1f"},
+      \ 'ValueReceiverTypeOmittedVar': {'group': 'goReceiverType', 'value': "T\x1f"},
+      \ }
+
+  let g:go_highlight_function_parameters = 1
+  for l:kv in items(l:tests)
+    let l:actual = s:receiverHighlightGroup(l:kv[0], l:kv[1].value)
+    call assert_equal(l:kv[1].group, l:actual, l:kv[0])
+  endfor
+  unlet g:go_highlight_function_parameters
+endfunc
+
+function! s:receiverHighlightGroup(testname, value)
+  let l:package = tolower(a:testname)
+  let l:dir = gotest#write_file(printf('%s/%s.go', l:package, a:testname), [
+        \ printf('package %s', l:package),
+        \ '',
+        \ 'type T struct{}',
+        \ printf('func (%s) Foo() {}', a:value),
+        \ ])
+
+  try
+    let l:pos = getcurpos()
+    let l:actual = synIDattr(synID(l:pos[1], l:pos[2], 1), 'name')
+    return l:actual
+  finally
+    call delete(l:dir, 'rf')
+  endtry
+endfunc
+
 " restore Vi compatibility settings
 let &cpo = s:cpo_save
 unlet s:cpo_save

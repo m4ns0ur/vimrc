@@ -52,8 +52,6 @@ Notes:
   * `buildifier`
 * BibTeX
   * `bibclean`
-* Bicep
-  * `bicep`
 * BitBake
   * `oelint-adv`
 * Bourne Shell
@@ -97,8 +95,6 @@ Notes:
   * `flawfinder`
   * `gcc` (`cc`)
   * `uncrustify`
-* Cairo
-  * `starknet`
 * Chef
   * `cookstyle`
   * `foodcritic`!!
@@ -118,9 +114,7 @@ Notes:
   * `ameba`!!
   * `crystal`!!
 * CSS
-  * `VSCode CSS language server`
   * `cspell`
-  * `css-beautify`
   * `csslint`
   * `fecs`
   * `prettier`
@@ -244,10 +238,8 @@ Notes:
   * `stack-ghc`
   * `stylish-haskell`
 * HCL
-  * `packer-fmt`
   * `terraform-fmt`
 * HTML
-  * `VSCode HTML language server`
   * `alex`
   * `angular`
   * `cspell`
@@ -291,7 +283,6 @@ Notes:
   * `tsserver`
   * `xo`
 * JSON
-  * `VSCode JSON language server`
   * `cspell`
   * `dprint`
   * `eslint`
@@ -336,7 +327,6 @@ Notes:
   * `luac`
   * `luacheck`
   * `luafmt`
-  * `selene`
   * `stylua`
 * Mail
   * `alex`
@@ -389,7 +379,6 @@ Notes:
   * `clangd`
   * `uncrustify`
 * OCaml
-  * `dune`
   * `merlin` (see |ale-ocaml-merlin|)
   * `ocamlformat`
   * `ocamllsp`
@@ -399,10 +388,6 @@ Notes:
   * `ibm_validator`
   * `prettier`
   * `yamllint`
-* OpenSCAD
-  * `SCA2D`
-* Packer
-  * `packer-fmt-fixer`
 * Pascal
   * `ptop`
 * Pawn
@@ -425,7 +410,6 @@ Notes:
   * `phpcs`
   * `phpmd`
   * `phpstan`
-  * `pint`
   * `psalm`!!
   * `tlint`
 * PO
@@ -446,8 +430,6 @@ Notes:
 * Prolog
   * `swipl`
 * proto
-  * `buf-format`!!
-  * `buf-lint`!!
   * `protoc-gen-lint`!!
   * `protolint`!!
 * Pug
@@ -475,7 +457,6 @@ Notes:
   * `pycodestyle`
   * `pydocstyle`
   * `pyflakes`
-  * `pyflyby`
   * `pylama`!!
   * `pylint`!!
   * `pylsp`
@@ -502,10 +483,6 @@ Notes:
   * `ols`
   * `reason-language-server`
   * `refmt`
-* Rego
-  * `cspell`
-  * `opacheck`
-  * `opafmt`
 * reStructuredText
   * `alex`
   * `cspell`
@@ -532,7 +509,6 @@ Notes:
   * `solargraph`
   * `sorbet`
   * `standardrb`
-  * `syntax_tree`
 * Rust
   * `cargo`!!
   * `cspell`
@@ -597,7 +573,6 @@ Notes:
   * `terraform-ls`
   * `terraform-lsp`
   * `tflint`
-  * `tfsec`
 * Texinfo
   * `alex`
   * `cspell`
@@ -667,9 +642,7 @@ Notes:
 * XML
   * `xmllint`
 * YAML
-  * `actionlint`
   * `circleci`!!
-  * `gitlablint`
   * `prettier`
   * `spectral`
   * `swaglint`
@@ -681,7 +654,6 @@ Notes:
 * Zeek
   * `zeek`!!
 * Zig
-  * `zigfmt`
   * `zls`
 
 ===============================================================================
