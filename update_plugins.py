@@ -65,6 +65,8 @@ editorconfig-vim https://github.com/editorconfig/editorconfig-vim
 dracula https://github.com/dracula/vim
 jedi-vim https://github.com/davidhalter/jedi-vim
 vim-go https://github.com/fatih/vim-go
+onedark.vim https://github.com/joshdick/onedark.vim
+copilot.vim https://github.com/github/copilot.vim
 """.strip()
 
 GITHUB_ZIP = "%s/archive/master.zip"
