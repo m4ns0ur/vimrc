@@ -265,10 +265,6 @@ function! s:next_tick(cmd)
   call timer_start(1, {-> execute(a:cmd)})
 endfunction
 
-function! s:next_tick(cmd)
-  call timer_start(1, {-> execute(a:cmd)})
-endfunction
-
 " Autocommands {{{
 
 augroup gitgutter

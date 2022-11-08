@@ -7,7 +7,7 @@ scriptencoding utf-8
 
 command! -bang -nargs=? -range=-1 -complete=customlist,copilot#CommandComplete Copilot exe copilot#Command(<line1>, <count>, +"<range>", <bang>0, "<mods>", <q-args>)
 
-if v:version < 800
+if v:version < 800 || !exists('##CompleteChanged')
   finish
 endif
 
@@ -17,6 +17,7 @@ function! s:ColorScheme() abort
   else
     hi def CopilotSuggestion guifg=#808080 ctermfg=8
   endif
+  hi def link CopilotAnnotation Normal
 endfunction
 
 function! s:MapTab() abort
@@ -71,11 +72,15 @@ if !get(g:, 'copilot_no_maps')
   endif
   imap <Plug>(copilot-next)     <Cmd>call copilot#Next()<CR>
   imap <Plug>(copilot-previous) <Cmd>call copilot#Previous()<CR>
+  imap <Plug>(copilot-suggest)  <Cmd>call copilot#Suggest()<CR>
   if empty(mapcheck('<M-]>', 'i'))
     imap <M-]> <Plug>(copilot-next)
   endif
   if empty(mapcheck('<M-[>', 'i'))
     imap <M-[> <Plug>(copilot-previous)
+  endif
+  if empty(mapcheck('<M-Bslash>', 'i'))
+    imap <M-Bslash> <Plug>(copilot-suggest)
   endif
 endif
 

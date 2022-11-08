@@ -213,13 +213,17 @@ snippet DD "D" w
 \mathbb{D}
 endsnippet
 
+snippet inmath "Inline Math" w
+\\(${1}\\) $0
+endsnippet
+
 snippet dm "Display Math" w
 \[
 	${1:${VISUAL}}
-.\]$0
+\]$0
 endsnippet
 
-snippet frac "Fraction" Aw
+snippet frac "Fraction" w
 \frac{$1}{$2}$0
 endsnippet
 
@@ -421,19 +425,15 @@ endsnippet
 # POSTFIX #
 ###########
 
-snippet pac "Package" b
-\usepackage`!p snip.rv='[' if t[1] else ""`${1:options}`!p snip.rv = ']' if t[1] else ""`{${2:package}}$0
-endsnippet
-
 snippet bar "bar" wi
 \bar{${1:${VISUAL}}}$0
 endsnippet
 
-snippet "\<(.*?)\|" "bra" Awri
+snippet "\<(.*?)\|" "bra" wri
 \bra{`!p snip.rv = match.group(1).replace('q', f'\psi').replace('f', f'\phi')`}
 endsnippet
 
-snippet "\|(.*?)\>" "ket" Awri
+snippet "\|(.*?)\>" "ket" wri
 \ket{`!p snip.rv = match.group(1).replace('q', f'\psi').replace('f', f'\phi')`}
 endsnippet
 
@@ -446,33 +446,12 @@ endsnippet
 # PRE-AMBLE #
 #############
 
-snippet pac "Package" b
-\usepackage[${1:options}]{${2:package}}$0
+snippet pac "usepackage - removes square braces if options removed" b
+\usepackage`!p snip.rv='[' if t[1] else ""`${1:options}`!p snip.rv = ']' if t[1] else ""`{${2:package}}$0
 endsnippet
 
 snippet docls "Document Class" bA
 \documentclass{$1}$0
-endsnippet
-
-snippet tmplt "Template"
-\documentclass{article}
-
-\usepackage{import}
-\usepackage{pdfpages}
-\usepackage{transparent}
-\usepackage{xcolor}
-$1
-
-\newcommand{\incfig}[2][1]{%
-		\def\svgwidth{#1\columnwidth}
-		\import{./figures/}{#2.pdf_tex}
-}
-$2
-\pdfsuppresswarningpagegroup=1
-
-\begin{document}
-		$0
-\end{document}
 endsnippet
 
 

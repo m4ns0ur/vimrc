@@ -5,129 +5,85 @@ let g:autoloaded_copilot = 1
 
 scriptencoding utf-8
 
-let s:has_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
+let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
+let s:has_vim_ghost_text = has('patch-9.0.0185') && has('textprop')
+let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
+let s:annot_hlgroup = 'CopilotAnnotation'
 
-if len($XDG_CONFIG_HOME)
-  let s:config_root = $XDG_CONFIG_HOME
-elseif has('win32')
-  let s:config_root = expand('~/AppData/Local')
-else
-  let s:config_root = expand('~/.config')
+if s:has_vim_ghost_text && empty(prop_type_get(s:hlgroup))
+  call prop_type_add(s:hlgroup, {'highlight': s:hlgroup})
 endif
-let s:config_root .= '/github-copilot'
-if !isdirectory(s:config_root)
-  call mkdir(s:config_root, 'p', 0700)
+if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
+  call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
 endif
 
-let s:config_hosts = s:config_root . '/hosts.json'
+function! s:EditorConfiguration() abort
+  let filetypes = copy(s:filetype_defaults)
+  if type(get(g:, 'copilot_filetypes')) == v:t_dict
+    call extend(filetypes, g:copilot_filetypes)
+  endif
+  return {
+        \ 'enableAutoCompletions': !empty(get(g:, 'copilot_enabled', 1)),
+        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) }))),
+        \ }
+endfunction
 
-function! s:JsonBody(response) abort
-  if get(a:response.headers, 'content-type', '') =~# '^application/json\>'
-    let body = a:response.body
-    return json_decode(type(body) == v:t_list ? join(body) : body)
+function! s:StatusNotification(params, ...) abort
+  let status = get(a:params, 'status', '')
+  if status ==? 'error'
+    let s:agent_error = a:params.message
   else
-    throw 'Copilot: expected application/json but got ' . get(a:response.headers, 'content-type', 'no content type')
+    unlet! s:agent_error
   endif
 endfunction
-
-function! copilot#HttpRequest(url, options, ...) abort
-  return call('copilot#agent#Call', ['httpRequest', extend({'url': a:url, 'timeout': 30000}, a:options)] + a:000)
-endfunction
-
-unlet! s:github
-function! s:OAuthToken() abort
-  if exists('s:github')
-    return get(s:github, 'oauth_token', '')
-  endif
-  if getfsize(s:config_hosts) > 0
-    try
-      let s:github = get(json_decode(join(readfile(s:config_hosts))), 'github.com', {})
-    catch
-      let s:github = {}
-    endtry
-  else
-    return ''
-  endif
-  return get(s:github, 'oauth_token', {})
-endfunction
-
-function! s:OAuthUser(token) abort
-  if len(a:token)
-    let user_response = copilot#HttpRequest('https://api.github.com/user', {'headers': {'Authorization': 'Bearer ' . a:token}})
-    let user_data = s:JsonBody(user_response)
-    if get(user_response, 'status') == 200 && has_key(user_data, 'login')
-      return user_data.login
-    endif
-  endif
-  return ''
-endfunction
-
-function! s:OAuthSave(token, user) abort
-  unlet! s:terms_accepted
-  if len(a:token) && len(a:user)
-    let s:github = {'oauth_token': a:token, 'user': a:user}
-    call writefile(
-          \ [json_encode({"github.com": s:github})],
-          \ s:config_hosts)
-    return 1
-  endif
-  let s:github = {}
-  call delete(s:config_hosts)
-endfunction
-
-function! s:OAuthUserCallback(token, response) abort
-  try
-    let user_data = s:JsonBody(a:response)
-    if get(a:response, 'status') == 200 && has_key(user_data, 'login')
-      let s:github = {'oauth_token': a:token, 'user': user_data.login}
-    endif
-  catch
-    call copilot#logger#Exception()
-  endtry
-endfunction
-
-if !exists('s:github') && $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
-  let s:github = {'oauth_token': $GITHUB_TOKEN, 'user': empty($GITHUB_USER) ? 'codespace-user': $GITHUB_USER}
-endif
 
 function! copilot#Init(...) abort
-  call timer_start(0, { _ -> copilot#agent#Start() })
+  call timer_start(0, { _ -> s:Start() })
 endfunction
 
-let s:terms_version = '2021-10-14'
-unlet! s:terms_accepted
-
-function! s:ReadTerms() abort
-  let file = s:config_root . '/terms.json'
-  try
-    if filereadable(file)
-      let terms = json_decode(join(readfile(file)))
-      if type(terms) == v:t_dict
-        return terms
-      endif
-    endif
-  catch
-  endtry
-  return {}
+function! s:Running() abort
+  return exists('s:agent.job') || exists('s:agent.client_id')
 endfunction
 
-function! s:TermsAccepted(force_reload) abort
-  if exists('s:terms_accepted') && !a:force_reload
-    return s:terms_accepted
+function! s:Start() abort
+  if s:Running()
+    return
   endif
-  call s:OAuthToken()
-  let file = s:config_root . '/terms.json'
-  if exists('s:github.user') && filereadable(file)
-    try
-      let s:terms_accepted = s:ReadTerms()[s:github.user].version >= s:terms_version
-      return s:terms_accepted
-    catch
-    endtry
+  let s:agent = copilot#agent#New({'notifications': {
+        \ 'statusNotification': function('s:StatusNotification'),
+        \ 'PanelSolution': function('copilot#panel#Solution'),
+        \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
+        \ },
+        \ 'editorConfiguration' : s:EditorConfiguration()})
+endfunction
+
+function! s:Stop() abort
+  if exists('s:agent')
+    let agent = remove(s:, 'agent')
+    call agent.Close()
   endif
-  let s:terms_accepted = 0
-  return s:terms_accepted
+endfunction
+
+function! copilot#Agent() abort
+  call s:Start()
+  return s:agent
+endfunction
+
+function! copilot#Request(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Request, [a:method, a:params] + a:000)
+endfunction
+
+function! copilot#Call(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Call, [a:method, a:params] + a:000)
+endfunction
+
+function! copilot#Notify(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Notify, [a:method, a:params] + a:000)
 endfunction
 
 function! copilot#NvimNs() abort
@@ -144,15 +100,15 @@ function! copilot#Clear() abort
   if exists('b:_copilot')
     call copilot#agent#Cancel(get(b:_copilot, 'first', {}))
     call copilot#agent#Cancel(get(b:_copilot, 'cycling', {}))
-    unlet b:_copilot
   endif
   call s:UpdatePreview()
+  unlet! b:_copilot
   return ''
 endfunction
 
 function! copilot#Dismiss() abort
-  unlet! b:_copilot
   call copilot#Clear()
+  call s:UpdatePreview()
   return ''
 endfunction
 
@@ -169,14 +125,14 @@ let s:filetype_defaults = {
 
 function! s:BufferDisabled() abort
   if exists('b:copilot_disabled')
-    return b:copilot_disabled ? 3 : 0
+    return empty(b:copilot_disabled) ? 0 : 3
   endif
   if exists('b:copilot_enabled')
-    return b:copilot_enabled ? 0 : 4
+    return empty(b:copilot_enabled) ? 4 : 0
   endif
   let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
   let config = get(g:, 'copilot_filetypes', {})
-  if has_key(config, &l:filetype)
+  if type(config) == v:t_dict && has_key(config, &l:filetype)
     return empty(config[&l:filetype])
   elseif has_key(config, short)
     return empty(config[short])
@@ -189,30 +145,18 @@ endfunction
 
 function! copilot#Enabled() abort
   return get(g:, 'copilot_enabled', 1)
-        \ && s:TermsAccepted(0)
         \ && empty(s:BufferDisabled())
-        \ && empty(copilot#agent#StartupError())
-endfunction
-
-function! copilot#Request(method, params, ...) abort
-  return call('copilot#agent#Request', [a:method, a:params] + a:000)
-endfunction
-
-function! copilot#Call(method, params, ...) abort
-  return call('copilot#agent#Call', [a:method, a:params] + a:000)
+        \ && empty(copilot#Agent().StartupError())
 endfunction
 
 function! copilot#Complete(...) abort
-  if !s:TermsAccepted(0)
-    return {}
-  endif
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  let doc = copilot#doc#Get()
-  if !exists('b:_copilot.doc') || b:_copilot.doc !=# doc
-    let b:_copilot = {'doc': doc, 'first':
-          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})}
+  let params = copilot#doc#Params()
+  if !exists('b:_copilot.params') || b:_copilot.params !=# params
+    let b:_copilot = {'params': params, 'first':
+          \ copilot#Request('getCompletions', params)}
     let g:_copilot_last = b:_copilot
   endif
   let completion = b:_copilot.first
@@ -226,9 +170,13 @@ function! copilot#Complete(...) abort
   endif
 endfunction
 
+function! s:HideDuringCompletion() abort
+  return get(g:, 'copilot_hide_during_completion', 1)
+endfunction
+
 function! s:SuggestionTextWithAdjustments() abort
   try
-    if mode() !~# '^[iR]' || pumvisible() || !s:dest || !exists('b:_copilot.suggestions')
+    if mode() !~# '^[iR]' || (s:HideDuringCompletion() && pumvisible()) || !s:dest || !exists('b:_copilot.suggestions')
       return ['', 0, 0, '']
     endif
     let choice = get(b:_copilot.suggestions, b:_copilot.choice, {})
@@ -242,15 +190,16 @@ function! s:SuggestionTextWithAdjustments() abort
       return ['', 0, 0, '']
     endif
     let typed = strpart(line, 0, offset)
-    let delete = strchars(strpart(line, offset))
+    let delete = strpart(line, offset)
     let uuid = get(choice, 'uuid', '')
-    if typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text, offset), 0, delete, uuid]
-    elseif typed =~# '^\s*$'
+    if typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
-      if strpart(typed, 0, len(leading)) == leading
-        return [strpart(choice.text, len(leading)), len(typed) - len(leading), delete, uuid]
+      let unindented = strpart(choice.text, len(leading))
+      if strpart(typed, 0, len(leading)) == leading && unindented !=# delete
+        return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
+    elseif typed ==# strpart(choice.text, 0, offset)
+      return [strpart(choice.text, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
@@ -295,8 +244,8 @@ function! s:GetSuggestionsCycling(callback) abort
     call a:callback(b:_copilot)
   elseif exists('b:_copilot.suggestions')
     let b:_copilot.cycling_callbacks = [a:callback]
-    let b:_copilot.cycling = copilot#agent#Request('getCompletionsCycling',
-          \ {'doc': b:_copilot.first.params.doc, 'options': {}},
+    let b:_copilot.cycling = copilot#Request('getCompletionsCycling',
+          \ b:_copilot.first.params,
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ )
@@ -367,8 +316,11 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
 endfunction
 
 function! s:ClearPreview() abort
-  if exists('*nvim_buf_del_extmark')
+  if s:has_nvim_ghost_text
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
+  elseif s:has_vim_ghost_text
+    call prop_remove({'type': s:hlgroup, 'all': v:true})
+    call prop_remove({'type': s:annot_hlgroup, 'all': v:true})
   endif
 endfunction
 
@@ -386,23 +338,41 @@ function! s:UpdatePreview() abort
       return s:ClearPreview()
     endif
     if exists('b:_copilot.cycling_callbacks')
-      let annot = [[' '], ['(1/…)', 'CopilotAnnotation']]
+      let annot = '(1/…)'
     elseif exists('b:_copilot.cycling')
-      let annot = [[' '], ['(' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')', 'CopilotAnnotation']]
+      let annot = '(' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')'
     else
-      let annot = []
+      let annot = ''
     endif
-    let data = {'id': 1}
-    let data.virt_text_win_col = virtcol('.') - 1
-    let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
-    if len(text) > 1
-      let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
-      let data.virt_lines[-1] += annot
+    call s:ClearPreview()
+    if s:has_nvim_ghost_text
+      let data = {'id': 1}
+      let data.virt_text_win_col = virtcol('.') - 1
+      let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
+      if len(text) > 1
+        let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
+        if !empty(annot)
+          let data.virt_lines[-1] += [[' '], [annot, s:annot_hlgroup]]
+        endif
+      elseif len(annot)
+        let data.virt_text += [[' '], [annot, s:annot_hlgroup]]
+      endif
+      let data.hl_mode = 'combine'
+      call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     else
-      let data.virt_text += annot
+      let trail = strpart(getline('.'), col('.') - 1)
+      while !empty(trail) && trail[-1] ==# text[0][-1]
+        let trail = trail[:-2]
+        let text[0] = text[0][:-2]
+      endwhile
+      call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
+      for line in text[1:]
+        call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
+      endfor
+      if !empty(annot)
+        call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot})
+      endif
     endif
-    call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
-    call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     if uuid !=# get(s:, 'uuid', '')
       let s:uuid = uuid
       call copilot#Request('notifyShown', {'uuid': uuid})
@@ -421,17 +391,22 @@ function! s:HandleTriggerResult(result) abort
   call s:UpdatePreview()
 endfunction
 
+function! copilot#Suggest() abort
+  try
+    call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
+  catch
+    call copilot#logger#Exception()
+  endtry
+  return ''
+endfunction
+
 function! s:Trigger(bufnr, timer) abort
   let timer = get(g:, '_copilot_timer', -1)
   unlet! g:_copilot_timer
   if a:bufnr !=# bufnr('') || a:timer isnot# timer || mode() !=# 'i'
     return
   endif
-  if exists('s:auth_request')
-    let g:_copilot_timer = timer_start(100, function('s:Trigger', [a:bufnr]))
-    return
-  endif
-  call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
+  return copilot#Suggest()
 endfunction
 
 function! copilot#IsMapped() abort
@@ -450,13 +425,12 @@ function! copilot#Schedule(...) abort
 endfunction
 
 function! copilot#OnInsertLeave() abort
-  unlet! b:_copilot
   return copilot#Clear()
 endfunction
 
 function! copilot#OnInsertEnter() abort
   let s:is_mapped = copilot#IsMapped()
-  let s:dest = bufnr('copilot://')
+  let s:dest = bufnr('^copilot://$')
   if s:dest < 0 && !s:has_ghost_text
     let s:dest = 0
   endif
@@ -464,7 +438,11 @@ function! copilot#OnInsertEnter() abort
 endfunction
 
 function! copilot#OnCompleteChanged() abort
-  return copilot#Clear()
+  if s:HideDuringCompletion()
+    return copilot#Clear()
+  else
+    return copilot#Schedule()
+  endif
 endfunction
 
 function! copilot#OnCursorMovedI() abort
@@ -507,55 +485,8 @@ function! copilot#Accept(...) abort
   endif
 endfunction
 
-function! s:DeviceResponse(result, login_data, poll_response) abort
-  let data = s:JsonBody(a:poll_response)
-  let should_cancel = get(get(s:, 'login_data', {}), 'device_code', '') !=# a:login_data.device_code
-  if has_key(data, 'access_token')
-    if !should_cancel
-      unlet s:login_data
-    endif
-    let response = copilot#HttpRequest(
-          \ 'https://api.github.com/copilot_internal/token',
-          \ {'headers': {'Authorization': 'Bearer ' . data.access_token}})
-    if response.status ==# 403
-      let a:result.success = 0
-      let a:result.error = "You don't have access to GitHub Copilot. Join the waitlist by visiting https://copilot.github.com"
-    else
-      let a:result.user = s:OAuthUser(data.access_token)
-      let a:result.success = !empty(a:result.user)
-      if a:result.success
-        call s:OAuthSave(data.access_token, a:result.user)
-      else
-        let a:result.error = "Could not retrieve GitHub user."
-      endif
-    endif
-  elseif should_cancel
-    let a:result.success = 0
-    let a:result.error = "Something went wrong."
-  elseif has_key(a:result, 'success')
-    return
-  elseif index(['authorization_pending', 'slow_down'], get(data, 'error', '')) != -1
-    call timer_start((get(data, 'interval', a:login_data.interval)+1) * 1000, function('s:DevicePoll', [a:result, a:login_data]))
-  elseif has_key(data, 'error_description')
-    let a:result.success = 0
-    let a:result.error = data.error_description
-    unlet! s:login_data
-    echohl ErrorMsg
-    echomsg 'Copilot: ' . data.error_description
-    echohl NONE
-  else
-    let a:result.success = 0
-    let a:result.error = "Something went wrong."
-  endif
-endfunction
-
-let s:client_id = "Iv1.b507a08c87ecfe98"
-
-function! s:DevicePoll(result, login_data, timer) abort
-  call copilot#HttpRequest(
-        \ 'https://github.com/login/oauth/access_token?grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=' . a:login_data.device_code . '&client_id=' . s:client_id,
-        \ {'headers': {'Accept': 'application/json'}},
-        \ function('s:DeviceResponse', [a:result, a:login_data]))
+function! s:BrowserCallback(into, code) abort
+  let a:into.code = a:code
 endfunction
 
 function! copilot#Browser() abort
@@ -576,30 +507,10 @@ endfunction
 
 let s:commands = {}
 
-function s:NetworkStatusMessage() abort
-  let err = copilot#agent#StartupError()
-  if !empty(err)
-    return err
-  endif
-  try
-    let response = copilot#HttpRequest('https://copilot-proxy.githubusercontent.com/_ping',
-          \ {'timeout': 5000, 'headers': {'Agent-Version': 'agent/' . copilot#agent#Version()}})
-    if response.status == 466
-      return "Server error:\n" . substitute(response.body, "\n$", '', '')
-    endif
-  catch /\%( timed out after \| getaddrinfo \|ERR_HTTP2_INVALID_SESSION\)/
-    call copilot#logger#Exception()
-    return 'Server connectivity issue'
-  catch
-    call copilot#logger#Exception()
-  endtry
-  return ''
-endfunction
-
 function! s:EnabledStatusMessage() abort
   let buf_disabled = s:BufferDisabled()
   if !s:has_ghost_text && bufwinid('copilot://') == -1
-    return "Neovim 0.6 prerelease required to support ghost text"
+    return "Neovim 0.6 required to support ghost text"
   elseif !copilot#IsMapped()
     return '<Tab> map has been disabled or is claimed by another plugin'
   elseif !get(g:, 'copilot_enabled', 1)
@@ -619,14 +530,29 @@ function! s:EnabledStatusMessage() abort
   endif
 endfunction
 
-function! s:commands.status(opts) abort
-  if empty(s:OAuthToken())
+function! s:VerifySetup() abort
+  let error = copilot#Agent().StartupError()
+  if !empty(error)
+    echo 'Copilot: ' . error
+    return
+  endif
+
+  let status = copilot#Call('checkStatus', {})
+
+  if !has_key(status, 'user')
     echo 'Copilot: Not authenticated. Invoke :Copilot setup'
     return
   endif
 
-  if !s:TermsAccepted(1)
+  if status.status ==# 'NoTelemetryConsent'
     echo 'Copilot: Telemetry terms not accepted. Invoke :Copilot setup'
+    return
+  endif
+  return 1
+endfunction
+
+function! s:commands.status(opts) abort
+  if !s:VerifySetup()
     return
   endif
 
@@ -636,133 +562,134 @@ function! s:commands.status(opts) abort
     return
   endif
 
-  let network_status = s:NetworkStatusMessage()
-  if !empty(network_status)
-      echo 'Copilot: ' . network_status
+  let startup_error = copilot#Agent().StartupError()
+  if !empty(startup_error)
+      echo 'Copilot: ' . startup_error
       return
+  endif
+
+  if exists('s:agent_error')
+    echo 'Copilot: ' . s:agent_error
+    return
+  endif
+
+  let status = copilot#Call('checkStatus', {})
+  if status.status ==# 'NotAuthorized'
+    echo 'Copilot: Not authorized'
+    return
   endif
 
   echo 'Copilot: Enabled and online'
 endfunction
 
 function! s:commands.signout(opts) abort
-  unlet! s:github
-  if empty(s:OAuthToken())
-    echo 'Copilot: Not signed in'
+  let status = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
+  if has_key(status, 'user')
+    echo 'Copilot: Signed out as GitHub user ' . status.user
   else
-    let user = get(s:github, 'user', '<unknown>')
-    let s:github = {}
-    echo 'Copilot: Signed out as GitHub user ' . user
+    echo 'Copilot: Not signed in'
   endif
-  call delete(s:config_hosts)
   call copilot#Call('signOut', {})
 endfunction
 
 function! s:commands.setup(opts) abort
-  let network_status = s:NetworkStatusMessage()
-  if !empty(network_status)
-    return 'echoerr ' . string('Copilot: ' . network_status)
+  let startup_error = copilot#Agent().StartupError()
+  if !empty(startup_error)
+      echo 'Copilot: ' . startup_error
+      return
   endif
 
   let browser = copilot#Browser()
 
-  if empty(s:OAuthToken()) || a:opts.bang
-    let response = copilot#HttpRequest('https://github.com/login/device/code', {
-          \ 'method': 'POST',
-          \ 'headers': {'Accept': 'application/json'},
-          \ 'json': {'client_id': s:client_id, 'scope': 'read:user'}})
-    let data = s:JsonBody(response)
-    let s:login_data = data
-    let @+ = data.user_code
-    let @* = data.user_code
-    echo "First copy your one-time code: " . data.user_code
+  let status = copilot#Call('checkStatus', {})
+  if has_key(status, 'user')
+    let data = {}
+  else
+    let data = copilot#Call('signInInitiate', {})
+  endif
+
+  if has_key(data, 'verificationUri')
+    let uri = data.verificationUri
+    if has('clipboard')
+      let @+ = data.userCode
+      let @* = data.userCode
+    endif
+    echo "First copy your one-time code: " . data.userCode
     try
       if len(&mouse)
         let mouse = &mouse
         set mouse=
       endif
-      if len(browser)
+      if get(a:opts, 'bang')
+        echo "In your browser, visit " . uri
+      elseif len(browser)
         echo "Press ENTER to open GitHub in your browser"
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
         endwhile
-        let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
-        if exit_status
-          echo "Failed to open browser.  Visit " . data.verification_uri
+        let status = {}
+        call copilot#job#Stream(browser + [uri], v:null, v:null, function('s:BrowserCallback', [status]))
+        let time = reltime()
+        while empty(status) && reltimefloat(reltime(time)) < 5
+          sleep 10m
+        endwhile
+        if get(status, 'code', browser[0] !=# 'xdg-open') != 0
+          echo "Failed to open browser.  Visit " . uri
         else
-          echo "Opened " . data.verification_uri
+          echo "Opened " . uri
         endif
       else
-        echo "Could not find browser.  Visit " . data.verification_uri
+        echo "Could not find browser.  Visit " . uri
       endif
       echo "Waiting (could take up to 5 seconds)"
-      let result = {}
-      call timer_start((data.interval+1) * 1000, function('s:DevicePoll', [result, data]))
-      try
-        while !has_key(result, 'success')
-          sleep 100m
-        endwhile
-      finally
-        if !has_key(result, 'success')
-          let result.success = 0
-          let result.error = "Interrupt"
-        endif
-        redraw
-      endtry
+      let request = copilot#Request('signInConfirm', {'userCode': data.userCode}).Wait()
     finally
       if exists('mouse')
         let &mouse = mouse
       endif
     endtry
-    if !result.success
-      return 'echoerr ' . string('Copilot: Authentication failure: ' . result.error)
+    if request.status ==# 'error'
+      return 'echoerr ' . string('Copilot: Authentication failure: ' . request.error.message)
+    else
+      let status = request.result
     endif
   endif
 
-  if !exists('s:github.user')
-    return 'echoerr ' . string('Copilot: Something went wrong retrieving GitHub user.')
-  endif
+  let user = get(status, 'user', '<unknown>')
 
-  if !s:TermsAccepted(1)
-    let terms_url = "https://github.co/copilot-telemetry-terms"
-    echo "I agree to these telemetry terms as part of the GitHub Copilot technical preview."
-    echo "<" . terms_url . ">"
-    let prompt = '[a]gree/[r]efuse'
-    if len(browser)
-      let prompt .= '/[o]pen in browser'
-    endif
-    while 1
-      let input = input(prompt . '> ')
-      if input =~# '^r'
-        redraw
-        return 'echoerr ' . string('Copilot: Terms must be accepted.')
-      elseif input =~# '^[ob]' && len(browser)
-        if copilot#job#Stream(browser + [terms_url], v:null, v:null) != 0
-          echo "\nCould not open browser."
-        endif
-      elseif input =~# '^a'
-        break
-      else
-        echo "\nUnrecognized response."
-      endif
-    endwhile
-    redraw
-    let terms = s:ReadTerms()
-    let terms[s:github.user] = {'version': s:terms_version}
-    call writefile([json_encode(terms)], s:config_root . '/terms.json')
-    unlet! s:terms_accepted
-  endif
-
-  call copilot#Call('checkStatus', {})
-  echo 'Copilot: Authenticated as GitHub user ' . s:github.user
+  echo 'Copilot: Authenticated as GitHub user ' . user
 endfunction
+
+let s:commands.auth = s:commands.setup
 
 function! s:commands.help(opts) abort
   return a:opts.mods . ' help ' . (len(a:opts.arg) ? ':Copilot_' . a:opts.arg : 'copilot')
 endfunction
 
-let s:feedback_url = 'https://github.com/github/feedback/discussions/categories/copilot-feedback'
+function! s:commands.version(opts) abort
+  let info = copilot#agent#EditorInfo()
+  echo 'copilot.vim ' .info.editorPluginInfo.version
+  echo info.editorInfo.name . ' ' . info.editorInfo.version
+  if exists('s:agent.node_version')
+    echo 'copilot/dist/agent.js ' . s:agent.Call('getVersion', {}).version
+    echo 'Node.js ' . s:agent.node_version
+  else
+    echo 'copilot/dist/agent.js not running'
+  endif
+endfunction
+
+function! s:UpdateEditorConfiguration() abort
+  try
+    if s:Running()
+      call copilot#Notify('notifyChangeConfiguration', {'settings': s:EditorConfiguration()})
+    endif
+  catch
+    call copilot#logger#Exception()
+  endtry
+endfunction
+
+let s:feedback_url = 'https://github.com/github-community/community/discussions/categories/copilot'
 function! s:commands.feedback(opts) abort
   echo s:feedback_url
   let browser = copilot#Browser()
@@ -771,13 +698,9 @@ function! s:commands.feedback(opts) abort
   endif
 endfunction
 
-function! s:commands.log(opts) abort
-  return a:opts.mods . ' split +$ ' . fnameescape(copilot#logger#File())
-endfunction
-
 function! s:commands.restart(opts) abort
-  call copilot#agent#Close()
-  let err = copilot#agent#StartupError()
+  call s:Stop()
+  let err = copilot#Agent().StartupError()
   if !empty(err)
     return 'echoerr ' . string('Copilot: ' . err)
   endif
@@ -786,10 +709,18 @@ endfunction
 
 function! s:commands.disable(opts) abort
   let g:copilot_enabled = 0
+  call s:UpdateEditorConfiguration()
 endfunction
 
 function! s:commands.enable(opts) abort
   let g:copilot_enabled = 1
+  call s:UpdateEditorConfiguration()
+endfunction
+
+function! s:commands.panel(opts) abort
+  if s:VerifySetup()
+    return copilot#panel#Open(a:opts)
+  endif
 endfunction
 
 function! s:commands.split(opts) abort
@@ -808,6 +739,8 @@ function! s:commands.split(opts) abort
   return mods . ' pedit copilot://'
 endfunction
 
+let s:commands.open = s:commands.split
+
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
   if args !~# ' '
@@ -821,22 +754,33 @@ endfunction
 function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   let cmd = matchstr(a:arg, '^\%(\\.\|\S\)\+')
   let arg = matchstr(a:arg, '\s\zs\S.*')
+  if cmd ==# 'log'
+    return a:mods . ' split +$ ' . fnameescape(copilot#logger#File())
+  endif
+  if !empty(cmd) && !has_key(s:commands, tr(cmd, '-', '_'))
+    return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
+  endif
   try
+    let err = copilot#Agent().StartupError()
+    if !empty(err)
+      return 'echo ' . string('Copilot: ' . string(err))
+    endif
+    try
+      let opts = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
+    catch
+      call copilot#logger#Exception()
+      let opts = {'status': 'VimException'}
+    endtry
     if empty(cmd)
-      if empty(s:OAuthToken()) || !s:TermsAccepted(1)
+      if opts.status ==# 'VimException'
+        return a:mods . ' split +$ ' . fnameescape(copilot#logger#File())
+      elseif opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
         let cmd = 'setup'
       else
-        let cmd = 'status'
+        let cmd = 'panel'
       endif
-    elseif cmd ==# 'auth'
-      let cmd = 'setup'
-    elseif cmd ==# 'open'
-      let cmd = 'split'
     endif
-    if !has_key(s:commands, tr(cmd, '-', '_'))
-      return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
-    endif
-    let opts = {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg}
+    call extend(opts, {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg})
     let retval = s:commands[tr(cmd, '-', '_')](opts)
     if type(retval) == v:t_string
       return retval
