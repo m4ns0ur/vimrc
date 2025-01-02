@@ -7,10 +7,20 @@ let s:default_registry = {
 \       'suggested_filetypes': ['python'],
 \       'description': 'Add blank lines before control statements.',
 \   },
+\   'alejandra': {
+\       'function': 'ale#fixers#alejandra#Fix',
+\       'suggested_filetypes': ['nix'],
+\       'description': 'The Uncompromising Nix Code Formatter',
+\   },
 \   'align_help_tags': {
 \       'function': 'ale#fixers#help#AlignTags',
 \       'suggested_filetypes': ['help'],
 \       'description': 'Align help tags to the right margin',
+\   },
+\   'apkbuild-fixer': {
+\       'function': 'ale#fixers#apkbuild_fixer#Fix',
+\       'suggested_filetypes': ['apkbuild'],
+\       'description': 'Fix policy violations found by apkbuild-lint in APKBUILDs',
 \   },
 \   'autoimport': {
 \       'function': 'ale#fixers#autoimport#Fix',
@@ -31,6 +41,11 @@ let s:default_registry = {
 \       'function': 'ale#fixers#bibclean#Fix',
 \       'suggested_filetypes': ['bib'],
 \       'description': 'Format bib files using bibclean.',
+\   },
+\   'biome': {
+\       'function': 'ale#fixers#biome#Fix',
+\       'suggested_filetypes': ['javascript', 'typescript', 'json', 'jsonc'],
+\       'description': 'Fix JavaScript and TypeScript using biome.',
 \   },
 \   'black': {
 \       'function': 'ale#fixers#black#Fix',
@@ -88,10 +103,26 @@ let s:default_registry = {
 \       'suggested_filetypes': ['dune'],
 \       'description': 'Fix dune files with dune format',
 \   },
+\   'erlang_mode': {
+\       'function': 'ale#fixers#erlang_mode#Fix',
+\       'suggested_filetypes': ['erlang'],
+\       'description': 'Indent with the Erlang mode for Emacs',
+\       'aliases': ['erlang-mode'],
+\   },
+\   'erlfmt': {
+\       'function': 'ale#fixers#erlfmt#Fix',
+\       'suggested_filetypes': ['erlang'],
+\       'description': 'Format Erlang code with erlfmt',
+\   },
 \   'fecs': {
 \       'function': 'ale#fixers#fecs#Fix',
 \       'suggested_filetypes': ['javascript', 'css', 'html'],
 \       'description': 'Apply fecs format to a file.',
+\   },
+\   'hurlfmt': {
+\       'function': 'ale#fixers#hurlfmt#Fix',
+\       'suggested_filetypes': ['hurl'],
+\       'description': 'Fix hurl files with hurlfmt.',
 \   },
 \   'tidy': {
 \       'function': 'ale#fixers#tidy#Fix',
@@ -122,7 +153,7 @@ let s:default_registry = {
 \   },
 \   'eslint': {
 \       'function': 'ale#fixers#eslint#Fix',
-\       'suggested_filetypes': ['javascript', 'typescript'],
+\       'suggested_filetypes': ['javascript', 'typescript', 'astro'],
 \       'description': 'Apply eslint --fix to a file.',
 \   },
 \   'mix_format': {
@@ -137,7 +168,7 @@ let s:default_registry = {
 \   },
 \   'prettier': {
 \       'function': 'ale#fixers#prettier#Fix',
-\       'suggested_filetypes': ['javascript', 'typescript', 'css', 'less', 'scss', 'json', 'json5', 'graphql', 'markdown', 'vue', 'svelte', 'html', 'yaml', 'openapi', 'ruby'],
+\       'suggested_filetypes': ['javascript', 'typescript', 'css', 'less', 'scss', 'json', 'json5', 'graphql', 'markdown', 'vue', 'svelte', 'html', 'yaml', 'openapi', 'ruby', 'astro'],
 \       'description': 'Apply prettier to a file.',
 \   },
 \   'prettier_eslint': {
@@ -174,12 +205,22 @@ let s:default_registry = {
 \   'yamlfix': {
 \       'function': 'ale#fixers#yamlfix#Fix',
 \       'suggested_filetypes': ['yaml'],
-\       'description': 'Fix yaml files with yamlfix.',
+\       'description': 'Fix YAML files with yamlfix.',
+\   },
+\   'yamlfmt': {
+\       'function': 'ale#fixers#yamlfmt#Fix',
+\       'suggested_filetypes': ['yaml'],
+\       'description': 'Format YAML files with yamlfmt.',
 \   },
 \   'yapf': {
 \       'function': 'ale#fixers#yapf#Fix',
 \       'suggested_filetypes': ['python'],
 \       'description': 'Fix Python files with yapf.',
+\   },
+\   'yq': {
+\       'function': 'ale#fixers#yq#Fix',
+\       'suggested_filetypes': ['yaml'],
+\       'description': 'Fix YAML files with yq.',
 \   },
 \   'rubocop': {
 \       'function': 'ale#fixers#rubocop#Fix',
@@ -263,8 +304,8 @@ let s:default_registry = {
 \   },
 \   'clang-format': {
 \       'function': 'ale#fixers#clangformat#Fix',
-\       'suggested_filetypes': ['c', 'cpp', 'cuda'],
-\       'description': 'Fix C/C++ and cuda files with clang-format.',
+\       'suggested_filetypes': ['c', 'cpp', 'cs', 'cuda', 'java', 'javascript', 'json', 'objc', 'proto'],
+\       'description': 'Fix C, C++, C#, CUDA, Java, JavaScript, JSON, ObjectiveC and Protobuf files with clang-format.',
 \   },
 \   'cmakeformat': {
 \       'function': 'ale#fixers#cmakeformat#Fix',
@@ -275,6 +316,16 @@ let s:default_registry = {
 \       'function': 'ale#fixers#fish_indent#Fix',
 \       'suggested_filetypes': ['fish'],
 \       'description': 'Format fish scripts using fish_indent.',
+\   },
+\   'forge': {
+\       'function': 'ale#fixers#forge#Fix',
+\       'suggested_filetypes': ['solidity'],
+\       'description': 'Fix Solidity files with forge fmt.',
+\   },
+\   'gleam_format': {
+\       'function': 'ale#fixers#gleam_format#Fix',
+\       'suggested_filetypes': ['gleam'],
+\       'description': 'Fix Gleam files with gleam format.',
 \   },
 \   'gofmt': {
 \       'function': 'ale#fixers#gofmt#Fix',
@@ -291,6 +342,11 @@ let s:default_registry = {
 \       'suggested_filetypes': ['go'],
 \       'description': 'Fix Go files imports with goimports.',
 \   },
+\   'golangci_lint': {
+\       'function': 'ale#fixers#golangci_lint#Fix',
+\       'suggested_filetypes': ['go'],
+\       'description': 'Fix Go files with golangci-lint.',
+\   },
 \   'golines': {
 \       'function': 'ale#fixers#golines#Fix',
 \       'suggested_filetypes': ['go'],
@@ -300,6 +356,11 @@ let s:default_registry = {
 \       'function': 'ale#fixers#gomod#Fix',
 \       'suggested_filetypes': ['gomod'],
 \       'description': 'Fix Go module files with go mod edit -fmt.',
+\   },
+\   'gopls': {
+\       'function': 'ale#fixers#gopls#Fix',
+\       'suggested_filetypes': ['go'],
+\       'description': 'Fix Go files with gopls.',
 \   },
 \   'tslint': {
 \       'function': 'ale#fixers#tslint#Fix',
@@ -385,6 +446,11 @@ let s:default_registry = {
 \       'function': 'ale#fixers#shfmt#Fix',
 \       'suggested_filetypes': ['sh'],
 \       'description': 'Fix sh files with shfmt.',
+\   },
+\   'sqlfluff': {
+\       'function': 'ale#fixers#sqlfluff#Fix',
+\       'suggested_filetypes': ['sql'],
+\       'description': 'Fix SQL files with sqlfluff.',
 \   },
 \   'sqlfmt': {
 \       'function': 'ale#fixers#sqlfmt#Fix',
@@ -521,6 +587,11 @@ let s:default_registry = {
 \       'suggested_filetypes': ['html', 'htmldjango'],
 \       'description': 'Fix HTML files with html-beautify from js-beautify.',
 \   },
+\   'htmlbeautifier': {
+\       'function': 'ale#fixers#htmlbeautifier#Fix',
+\       'suggested_filetypes': ['eruby'],
+\       'description': 'Fix ERB files with htmlbeautifier gem.',
+\   },
 \   'lua-format': {
 \       'function': 'ale#fixers#lua_format#Fix',
 \       'suggested_filetypes': ['lua'],
@@ -543,6 +614,11 @@ let s:default_registry = {
 \   },
 \   'ormolu': {
 \       'function': 'ale#fixers#ormolu#Fix',
+\       'suggested_filetypes': ['haskell'],
+\       'description': 'A formatter for Haskell source code.',
+\   },
+\   'fourmolu': {
+\       'function': 'ale#fixers#fourmolu#Fix',
 \       'suggested_filetypes': ['haskell'],
 \       'description': 'A formatter for Haskell source code.',
 \   },
@@ -575,7 +651,52 @@ let s:default_registry = {
 \       'function': 'ale#fixers#raco_fmt#Fix',
 \       'suggested_filetypes': ['racket'],
 \       'description': 'Fix Racket files with raco fmt.',
-\   }
+\   },
+\   'ruff': {
+\       'function': 'ale#fixers#ruff#Fix',
+\       'suggested_filetypes': ['python'],
+\       'description': 'Fix python files with ruff.',
+\   },
+\   'ruff_format': {
+\       'function': 'ale#fixers#ruff_format#Fix',
+\       'suggested_filetypes': ['python'],
+\       'description': 'Fix python files with the ruff formatter.',
+\   },
+\   'pycln': {
+\       'function': 'ale#fixers#pycln#Fix',
+\       'suggested_filetypes': ['python'],
+\       'description': 'remove unused python import statements',
+\   },
+\   'rustywind': {
+\       'function': 'ale#fixers#rustywind#Fix',
+\       'suggested_filetypes': ['html'],
+\       'description': 'Sort Tailwind CSS classes',
+\   },
+\   'npm-groovy-lint': {
+\       'function': 'ale#fixers#npmgroovylint#Fix',
+\       'suggested_filetypes': ['groovy'],
+\       'description': 'Fix Groovy files with npm-groovy-fix.',
+\   },
+\   'erb-formatter': {
+\       'function': 'ale#fixers#erbformatter#Fix',
+\       'suggested_filetypes': ['eruby'],
+\       'description': 'Apply erb-formatter -w to eruby/erb files.',
+\   },
+\   'nickel_format': {
+\       'function': 'ale#fixers#nickel_format#Fix',
+\       'suggested_filetypes': ['nickel'],
+\       'description': 'Fix nickel files with nickel format',
+\   },
+\   'rubyfmt': {
+\       'function': 'ale#fixers#rubyfmt#Fix',
+\       'suggested_filetypes': ['ruby'],
+\       'description': 'A formatter for Ruby source code',
+\   },
+\   'cljfmt': {
+\       'function': 'ale#fixers#cljfmt#Fix',
+\       'suggested_filetypes': ['clojure'],
+\       'description': 'formatter and linter for clojure files',
+\   },
 \}
 
 " Reset the function registry to the default entries.
