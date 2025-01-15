@@ -6627,7 +6627,7 @@ function! fugitive#Diffsplit(autodir, keepfocus, mods, arg, ...) abort
   let commit = s:DirCommitFile(@%)[1]
   if a:mods =~# '\<\d*tab\>'
     let mods = substitute(a:mods, '\<\d*tab\>', '', 'g')
-    let pre = matchstr(a:mods, '\<\d*tab\>') . 'edit'
+    let pre = matchstr(a:mods, '\<\d*tab\>') . ' split'
   else
     let mods = 'keepalt ' . a:mods
     let pre = ''
@@ -6769,7 +6769,6 @@ function! s:Move(force, rename, destination) abort
     if destination !~# '^/\|^\a\+:'
       let destination = s:Tree(dir) . '/' . destination
     endif
-    let destination = s:Tree(dir) .
   elseif a:destination =~# '^:(\%(top,literal\|literal,top\))'
     let destination = s:Tree(dir) . matchstr(a:destination, ')\zs.*')
   elseif a:destination =~# '^:(literal)\.\.\=\%(/\|$\)'
@@ -6778,8 +6777,8 @@ function! s:Move(force, rename, destination) abort
     let destination = simplify(default_root . matchstr(a:destination, ')\zs.*'))
   else
     let destination = s:Expand(a:destination)
-    if destination =~# '^\.\.\=\%(/\|$\)'
-      let destination = simplify(getcwd() . '/' . destination)
+    if destination =~# '^\.\.\=\%(/\|$\)' && !a:rename
+      let destination = simplify((a:rename ? default_root : getcwd() . '/') . destination)
     elseif destination !~# '^\a\+:\|^/'
       let destination = default_root . destination
     endif
@@ -7437,7 +7436,9 @@ function! s:BrowserOpen(url, mods, echo_copy) abort
     if !exists('g:loaded_netrw')
       runtime! autoload/netrw.vim
     endif
-    if exists('*netrw#BrowseX')
+    if exists('*netrw#Open')
+      return 'echo '.string(url).'|' . mods . 'call netrw#Open('.string(url).')'
+    elseif exists('*netrw#BrowseX')
       return 'echo '.string(url).'|' . mods . 'call netrw#BrowseX('.string(url).', 0)'
     elseif exists('*netrw#NetrwBrowseX')
       return 'echo '.string(url).'|' . mods . 'call netrw#NetrwBrowseX('.string(url).', 0)'
