@@ -1,3 +1,17 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "requests",
+# ]
+# ///
+try:
+    import concurrent.futures as futures
+except ImportError:
+    try:
+        import futures
+    except ImportError:
+        futures = None
+
 import re
 import shutil
 import tempfile
@@ -56,6 +70,8 @@ mru.vim https://github.com/vim-scripts/mru.vim
 editorconfig-vim https://github.com/editorconfig/editorconfig-vim
 dracula https://github.com/dracula/vim
 copilot.vim https://github.com/github/copilot.vim
+vim-go https://github.com/fatih/vim-go
+onedark.vim https://github.com/joshdick/onedark.vim
 """.strip()
 
 GITHUB_ZIP = "%s/archive/master.zip"
