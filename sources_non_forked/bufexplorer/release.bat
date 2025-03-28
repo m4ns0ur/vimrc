@@ -8,10 +8,8 @@ set /p "GH_TOKEN=" <GITHUB_TOKEN
 git tag -a %1 -m "Release %1."
 git push origin %1
 
-7z a bufexplorer-%1.zip plugin\bufexplorer.vim doc\bufexplorer.txt
-gh release create %1 --notes-from-tag bufexplorer-%1.zip
-
-::gh release create %1 --notes-from-tag
+7z a bufexplorer-%1.zip plugin\bufexplorer.vim doc\bufexplorer.txt syntax\bufexplorer.vim
+gh release create %1 --generate-notes bufexplorer-%1.zip
 
 goto :done
 
