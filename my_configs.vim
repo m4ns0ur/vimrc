@@ -104,3 +104,9 @@ augroup END
 " comfortable-motions
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 let g:loaded_comfortable_motion = 0
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Disable automatic folding in JavaScript files
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+autocmd FileType javascript setlocal nofoldenable
+
